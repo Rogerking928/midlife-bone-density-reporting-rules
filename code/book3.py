@@ -42,6 +42,8 @@ for s_ in NEW:                       # 兩欄併進同一結構，各列照舊�
     TX[s_] = {k: M5[s_][k] for k in ("smoke", "frac", "par_hip", "ls", "n_ls")}
     R3["race5_table1"][s_] = M5[s_]["race"]
 ST = ST + NEW
+NCOL = {s_: T1[s_]["n"] for s_ in ST}
+pcn = lambda d, s_: "—" if d["n"] < 0.5 * NCOL[s_] else f"{d['p']:.1f}"   # 該題作答不到該組一半：不報比例
 pc = lambda d: f"{d['p']:.1f}"
 rows = [HEAD,
         ["Participants, n"] + [f"{T1[s]['n']:,}" for s in ST],
@@ -54,20 +56,24 @@ for r in ("Non-Hispanic White", "Non-Hispanic Black", "Mexican American", "Other
 rows += [["Current smoking, %"] + [pc(TX[s]["smoke"]) for s in ST],
          ["Prior hip, wrist or spine fracture, %"] + [pc(TX[s]["frac"]) for s in ST],
          ["Parent ever fractured a hip, %"] + [pc(TX[s]["par_hip"]) for s in ST],
-         ["Ever used female hormones, %"] + [pc(T1[s]["hrt"]) for s in ST],
+         ["Ever used female hormones, %"] + [pcn(T1[s]["hrt"], s) for s in ST],
          ["Femoral neck BMD, g/cm², mean (95% CI)"] + [mci(T1[s]["fn"], 3) for s in ST],
          ["Lumbar spine BMD, g/cm², mean (95% CI)"] + [mci(TX[s]["ls"], 3) for s in ST],
          ["Postmenopausal rule, femoral neck, %"] + [""] * len(ST)]
 for c, lab in (("0", "Normal"), ("1", "Low bone mass"), ("2", "Osteoporosis")):
     rows.append([f"  {lab}"] + [pc(T1[s]["tcat"][c]) for s in ST])
 rows.append(["Premenopausal rule, femoral neck Z-score −2.0 or lower, %"] + [pc(T1[s]["zlow"]) for s in ST])
+MS = R5["missing"]
 nO, nNA = R1["status"]["No periods, other reason"]["any"]["n"], R1["status"]["Not ascertained"]["any"]["n"]
 TAB1 = {"kind": "table", "caption": "Table 1. Characteristics of women aged 45–55 years with femoral neck DXA, by menstrual and surgical status",
         "rows": rows, "first_w": 2.2,
         "note": (f"Unit of analysis: participant (one examination each). Status hierarchy: bilateral oophorectomy; hysterectomy with at least one ovary conserved; "
                  f"at least one menstrual period in the past 12 months; no periods because of menopause; no periods for another reason; status not ascertained. "
                  f"Hysterectomy with ovaries conserved, no periods for another reason and status not ascertained are the structurally indeterminate groups (Figure 2D). Race and ethnicity groups are those used for the Z-score reference. "
-                 f"Percentages exclude missing responses; lumbar spine BMD was available for {TX['All']['n_ls']:,} women. {DESIGN} BMD, bone mineral density.")}
+                 f"Percentages exclude missing responses. Missing among the {T1['All']['n']:,} women: body mass index {MS['bmi']}, female hormone use "
+                 f"{MS['hormone']}, current smoking {MS['smoking']}, prior fracture {MS['fracture']}, parental hip fracture {MS['parent_hip']}, lumbar spine BMD "
+                 f"{MS['lumbar_spine']}. —, not collected: the reproductive health questionnaire, which contains the hormone item, was not completed by "
+                 f"{MS['hormone_not_ascertained']} of the {T1['Not ascertained']['n']} women whose status was not ascertained. {DESIGN} BMD, bone mineral density.")}
 
 # ------------------------------------------------------------------ Table 2（精簡：百萬人＋CI）
 X, X3 = R3["xtab"]["FN"], R3["xtab"]["LOW3"]
@@ -193,7 +199,8 @@ TABS3 = {"kind": "table", "caption": "Table S4. Prior fracture and diagnosed ost
                   + "). Age-standardized by the direct method to all women aged 45–55 years "
                   f"(45–49 y, {R1['std_shares'][0] * 100:.1f}%; 50–55 y, {R1['std_shares'][1] * 100:.1f}%); the Z-below group (n = 18) is shown crude only. "
                   "Prevalence ratios from survey-weighted Poisson regression; the fully adjusted model (age, body mass index, race and ethnicity, female hormone use) "
-                  "excludes women with missing covariates. These comparisons contrast women with lower and normal BMD; the comparison of the two rules themselves is "
+                  f"excludes women with missing covariates ({R5['full_model_excluded']['n']} of {R5['full_model_excluded']['n_domain']:,} for prior fracture, "
+                  f"{R5['full_model_excluded']['not_ascertained']} of them women whose menopausal status was not ascertained and whose hormone use was therefore not collected). These comparisons contrast women with lower and normal BMD; the comparison of the two rules themselves is "
                   "in Figure 3. A prior osteoporosis diagnosis may itself reflect an earlier DXA, so that outcome is not independent of BMD. "
                   f"{DESIGN} PR, prevalence ratio.")}
 

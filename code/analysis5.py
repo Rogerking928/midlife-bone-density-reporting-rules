@@ -3,8 +3,10 @@
 1. Table 1 補兩欄：無月經（其他原因）、狀態未確定。各列定義與 analysis.py／analysis2.py／analysis3.py 相同；
    先用同一函式重算「Menstruating」欄，與既有結果逐值比對，確認定義一致。
 2. 骨折限定 40 歲以後：OSD030 系列（髖、腕、脊椎，每次骨折的年齡；80 = 80 歲以上；77777／99999 = 拒答／不知道）。
-   有任一次骨折發生在 ≥ 40 歲 → 1；從未骨折，或所有骨折部位的年齡都已知且 < 40 歲 → 0；
-   其餘（有骨折但年齡不明，且沒有已知 ≥ 40 歲的骨折）→ 缺失。
+   有任一次骨折發生在 ≥ 40 歲 → 1；從未骨折，或每一次骨折的年齡都已知且 < 40 歲 → 0；
+   其餘 → 缺失。「每一次」依 OSQ020（該部位骨折次數）逐次檢查 OSD030 第 1…k 次的年齡；次數不明（如 9999）也算年齡不明
+   （2026-10-28 第二輪審閱：原本只檢查第一次骨折的年齡）。
+3. 缺失人數（Table 1 註腳，STROBE 14b）。
    不一致 vs 一致正常的盛行率比（粗、年齡校正、完整校正），與 analysis2.py 的骨折史模型相同。
 """
 import json
@@ -24,28 +26,36 @@ def frac40(w):
     parts = []
     for c in A.CYC:
         o = pd.read_sas(D / f"OSQ_{c}.xpt")
-        cols = [x for x in o.columns if x.startswith("OSD030")]
+        cols = [x for x in o.columns if x.startswith(("OSD030", "OSQ020"))]
         parts.append(o[["SEQN"] + cols])
     o = pd.concat(parts, ignore_index=True)
     o = w[["SEQN", "OSQ010A", "OSQ010B", "OSQ010C"]].merge(o, on="SEQN", how="left")
     assert (o.SEQN.values == w.SEQN.values).all()
     out = np.full(len(o), np.nan)
-    for i, r in enumerate(o.itertuples(index=False)):
-        rd = r._asdict()
-        sites = {"A": rd["OSQ010A"], "B": rd["OSQ010B"], "C": rd["OSQ010C"]}
+    letters = "ABCDEFGHIJ"
+    for i, rd in enumerate(o.to_dict("records")):
+        sites = {s: rd["OSQ010" + s] for s in "ABC"}
         if all(v == 2 for v in sites.values()):
             out[i] = 0.0; continue
         if not any(v == 1 for v in sites.values()):
             continue                                   # 骨折題本身缺失
         known, unknown = [], False
+        valid = lambda a: a is not None and a == a and 1 <= a <= 80
         for s, v in sites.items():
             if v != 1:
                 continue
-            ages = [rd[k] for k in rd if k.startswith(f"OSD030{s}")]
-            first = rd.get(f"OSD030{s}A")
-            if first is None or not (1 <= first <= 80):
+            k = rd.get("OSQ020" + s)
+            k = int(k) if (k is not None and k == k and 1 <= k <= len(letters)) else None
+            if k is None:                              # 骨折次數不明：收集已知年齡，但不能判為 0
                 unknown = True
-            known += [a for a in ages if a is not None and 1 <= a <= 80]
+                known += [rd.get(f"OSD030{s}{L}") for L in letters if valid(rd.get(f"OSD030{s}{L}"))]
+                continue
+            for L in letters[:k]:                      # 第 1…k 次骨折，每一次的年齡都要已知
+                a = rd.get(f"OSD030{s}{L}")
+                if valid(a):
+                    known.append(a)
+                else:
+                    unknown = True
         if any(a >= 40 for a in known):
             out[i] = 1.0
         elif not unknown:
@@ -103,7 +113,18 @@ def main():
         b, V, dm = B.svyglm(des, Xm, y, prim & ~np.isnan(expo), family="poisson")
         R["pr_frac40"][k] = {"pr": float(np.exp(b[1])), "lo": float(np.exp(b[1] - q * np.sqrt(V[1, 1]))),
                              "hi": float(np.exp(b[1] + q * np.sqrt(V[1, 1]))), "n": int(dm.sum())}
+    P = w[prim]
+    R["missing"] = {"bmi": int(P.BMXBMI.isna().sum()), "hormone": int(P.hrt.isna().sum()),
+                    "hormone_not_ascertained": int((P.hrt.isna() & (P.status == "Not ascertained")).sum()),
+                    "smoking": int(P.smoke.isna().sum()), "fracture": int(P.frac.isna().sum()),
+                    "parent_hip": int(P.par_hip.isna().sum()), "told": int(P.told.isna().sum()), "lumbar_spine": int(P.LS.isna().sum())}
+    # 完整校正模型（骨折史）排除的人：其中多少是狀態未確定（荷爾蒙題沒問到）
+    dom = prim & ~np.isnan(expo) & w.frac.notna().values
+    drop = dom & (w.hrt.isna() | w.BMXBMI.isna()).values
+    R["full_model_excluded"] = {"n_domain": int(dom.sum()), "n": int(drop.sum()),
+                                "not_ascertained": int((drop & (w.status.values == "Not ascertained")).sum())}
     json.dump(R, open(OUT / "results5.json", "w"), indent=1, default=float, ensure_ascii=False)
+    print("missing:", R["missing"], "full model excluded:", R["full_model_excluded"])
     print("Table 1 new columns:", {s: R["table1_more"][s]["n"] for s in NEW})
     print("fracture ≥40:", R["frac40_counts"])
     for k, v in R["pr_frac40"].items():
