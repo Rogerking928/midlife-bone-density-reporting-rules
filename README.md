@@ -15,6 +15,7 @@ python3 analysis.py              # base estimates            -> out/results.json
 python3 analysis2.py             # sites, splines, fracture  -> out/results2.json
 python3 analysis3.py             # counts, T vs Z, variance  -> out/results3.json
 python3 analysis4.py             # matched cut-points, sensitivity -> out/results4.json
+python3 analysis5.py             # Table 1 extra columns, fracture at 40+ -> out/results5.json
 python3 figs.py                  # Figure S1 (participant flow)
 python3 figs3.py                 # Figures 1-3 and S2-S5 (figs2.py holds shared drawing helpers)
 python3 book3.py                 # Tables_and_Figures.docx, PNGs and Source_data.xlsx -> $DELIVERABLE_DIR

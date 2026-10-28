@@ -16,6 +16,7 @@ R1 = json.load(open(OUT / "results.json"))
 R = json.load(open(OUT / "results2.json"))
 R3 = json.load(open(OUT / "results3.json"))
 R4 = json.load(open(OUT / "results4.json"))
+R5 = json.load(open(OUT / "results5.json"))   # 2026-10-28：Table 1 兩欄、40 歲後骨折
 ci = lambda d, nd=1: f"{d['p']:.{nd}f} ({d['lo']:.{nd}f} to {d['hi']:.{nd}f})"
 mci = lambda d, nd=1: f"{d['m']:.{nd}f} ({d['lo']:.{nd}f} to {d['hi']:.{nd}f})"
 mil = lambda d: f"{d['t']:.2f} ({d['lo']:.2f} to {d['hi']:.2f})"
@@ -32,15 +33,22 @@ LSREF = (f"Lumbar spine (L1–L4) T-scores use the weighted mean ({TREF['LS']['m
 
 # ------------------------------------------------------------------ Table 1（精簡）
 ST = ["All", "Menstruating", "No periods, menopause", "Hysterectomy, ovaries conserved", "Bilateral oophorectomy"]
-HEAD = ["Characteristic", "All women aged 45–55 y", "Menstruating", "No periods, natural menopause", "Hysterectomy, ovaries conserved", "Bilateral oophorectomy"]
+HEAD = ["Characteristic", "All women aged 45–55 y", "Menstruating", "No periods, natural menopause", "Hysterectomy, ovaries conserved", "Bilateral oophorectomy",
+        "No periods, other reason", "Status not ascertained"]
 T1, TX, SH = R1["table1"], R["table1_extra"], R1["status_share"]
+M5 = R5["table1_more"]; NEW = ["No periods, other reason", "Not ascertained"]
+for s_ in NEW:                       # 兩欄併進同一結構，各列照舊取值
+    T1[s_] = {k: M5[s_][k] for k in ("n", "age", "bmi", "hrt", "fn", "tcat", "zlow")}
+    TX[s_] = {k: M5[s_][k] for k in ("smoke", "frac", "par_hip", "ls", "n_ls")}
+    R3["race5_table1"][s_] = M5[s_]["race"]
+ST = ST + NEW
 pc = lambda d: f"{d['p']:.1f}"
 rows = [HEAD,
         ["Participants, n"] + [f"{T1[s]['n']:,}" for s in ST],
         ["Weighted share of women aged 45–55 y, %"] + ["100"] + [pc(SH[s]) for s in ST[1:]],
         ["Age, y, mean (95% CI)"] + [mci(T1[s]["age"]) for s in ST],
         ["Body mass index, kg/m², mean (95% CI)"] + [mci(T1[s]["bmi"]) for s in ST],
-        ["Race and ethnicity, %", "", "", "", "", ""]]
+        ["Race and ethnicity, %"] + [""] * len(ST)]
 for r in ("Non-Hispanic White", "Non-Hispanic Black", "Mexican American", "Other Hispanic", "Other, including multiracial"):
     rows.append([f"  {r}"] + [pc(R3["race5_table1"][s][r]) for s in ST])
 rows += [["Current smoking, %"] + [pc(TX[s]["smoke"]) for s in ST],
@@ -49,16 +57,16 @@ rows += [["Current smoking, %"] + [pc(TX[s]["smoke"]) for s in ST],
          ["Ever used female hormones, %"] + [pc(T1[s]["hrt"]) for s in ST],
          ["Femoral neck BMD, g/cm², mean (95% CI)"] + [mci(T1[s]["fn"], 3) for s in ST],
          ["Lumbar spine BMD, g/cm², mean (95% CI)"] + [mci(TX[s]["ls"], 3) for s in ST],
-         ["Postmenopausal rule, femoral neck, %", "", "", "", "", ""]]
+         ["Postmenopausal rule, femoral neck, %"] + [""] * len(ST)]
 for c, lab in (("0", "Normal"), ("1", "Low bone mass"), ("2", "Osteoporosis")):
     rows.append([f"  {lab}"] + [pc(T1[s]["tcat"][c]) for s in ST])
 rows.append(["Premenopausal rule, femoral neck Z-score −2.0 or lower, %"] + [pc(T1[s]["zlow"]) for s in ST])
 nO, nNA = R1["status"]["No periods, other reason"]["any"]["n"], R1["status"]["Not ascertained"]["any"]["n"]
 TAB1 = {"kind": "table", "caption": "Table 1. Characteristics of women aged 45–55 years with femoral neck DXA, by menstrual and surgical status",
-        "rows": rows, "first_w": 2.4,
+        "rows": rows, "first_w": 2.2,
         "note": (f"Unit of analysis: participant (one examination each). Status hierarchy: bilateral oophorectomy; hysterectomy with at least one ovary conserved; "
-                 f"at least one menstrual period in the past 12 months; no periods because of menopause. The all-women column also includes {nO} women with "
-                 f"no periods for another reason and {nNA} whose status was not ascertained (Figure 2D). Race and ethnicity groups are those used for the Z-score reference. "
+                 f"at least one menstrual period in the past 12 months; no periods because of menopause; no periods for another reason; status not ascertained. "
+                 f"Hysterectomy with ovaries conserved, no periods for another reason and status not ascertained are the structurally indeterminate groups (Figure 2D). Race and ethnicity groups are those used for the Z-score reference. "
                  f"Percentages exclude missing responses; lumbar spine BMD was available for {TX['All']['n_ls']:,} women. {DESIGN} BMD, bone mineral density.")}
 
 # ------------------------------------------------------------------ Table 2（精簡：百萬人＋CI）
@@ -135,6 +143,7 @@ REG = [["Analysis", "Status", "Date fixed", "Exhibit"],
        ["Heterogeneity by participant characteristics", "Post hoc", "2026-10-27", "Figure S3"],
        ["Z-score dichotomized at the cut-point giving the same positivity as T-score −1.0, and at −1.0", "Post hoc", "2026-10-27", "Figure 3C"],
        ["Expected count with the premenopausal probability shifted 1 and 2 years earlier; late menopausal transition (2005–2006)", "Post hoc", "2026-10-27", "Table S3"],
+       ["Table 1 columns for no periods for another reason and status not ascertained; prior fracture restricted to age 40 years or older", "Post hoc", "2026-10-28", "Table 1, Table S4"],
        ["ISCD 2023 Official Positions checked against the original text: WHO criteria may be applied in the menopausal transition (permitted, not required)", "Post hoc", "2026-10-27", "Frames the choice of rule as discretionary"],
        ["T-score cut-points taken from published NHANES III femur thresholds", "Correction", "2026-10-27", "Earlier draft used an unverified reference mean and SD"],
        ["Pooled weights divided by the number of cycles offering femur DXA at each age", "Correction", "2026-10-27", "Earlier draft divided all weights by 5"]]
@@ -171,11 +180,14 @@ for o, lab in (("frac", "Prior hip, wrist or spine fracture"), ("told", "Ever to
         dif = (f"{s_['d']:.1f} ({s_['dlo']:.1f} to {s_['dhi']:.1f})" if g != "T normal" else "Reference") if s_ else "—"
         rows.append([f"  {gl}", f"{c['n']:,}", f"{R1['outcome_age'][g]['m']:.1f}", ci(c), std, dif])
 rows.append(["Prevalence ratio, discordant vs concordant normal", "", "", "", "", ""])
-for o, lab in (("frac", "Prior fracture"), ("told", "Told of osteoporosis")):
-    for k, v in R["pr"][o].items():
+for o, lab, src in (("frac", "Prior fracture", R["pr"]["frac"]), ("frac40", "Fracture at age 40 years or older", R5["pr_frac40"]),
+                    ("told", "Told of osteoporosis", R["pr"]["told"])):
+    for k, v in src.items():
         rows.append([f"  {lab}: {k[0].lower() + k[1:] if k != 'Crude' else 'crude'}", f"{v['n']:,}", "", "", "", f"PR {v['pr']:.2f} ({v['lo']:.2f} to {v['hi']:.2f})"])
 TABS3 = {"kind": "table", "caption": "Table S4. Prior fracture and diagnosed osteoporosis by concordance group, women aged 45–55 years", "rows": rows, "first_w": 2.9,
-         "note": ("Self-reported, doctor-diagnosed fracture at any age. n excludes missing responses ("
+         "note": ("Self-reported, doctor-diagnosed fracture at any age. Fracture at age 40 years or older: any hip, wrist or spine fracture with a "
+                  f"reported age of 40 years or more ({R5['frac40_counts']['cases']} women); women whose fractures all occurred before 40 years count as without; "
+                  f"{R5['frac40_counts']['missing_age']} women with a fracture of unknown age are excluded. n excludes missing responses ("
                   + "; ".join(f"{(lambda s: s if s.startswith('Z ') else s.lower())(gl.split(' (')[0])}: {R1['outcome_age'][g]['n'] - R1['outcome']['frac'][g]['n']} missing fracture, "
                               f"{R1['outcome_age'][g]['n'] - R1['outcome']['told'][g]['n']} missing osteoporosis item" for g, gl in G)
                   + "). Age-standardized by the direct method to all women aged 45–55 years "
